@@ -1,0 +1,105 @@
+# Project Container Management Utility with Mise
+#
+# Author: Darrell D Feb 2026
+#
+# Instructions: Place this file in a folder, and that is your project name
+#
+# tasks 90,91 and 99 are one time only, hence disabled with false
+# To use those tasks, make false true
+#
+# Use 'mise run' to get task menu
+# Use 'mise run --debug' if you break a task
+
+# this file lives in the folder outside your project, so, this file will
+# not be mixed within your project
+
+
+[tasks.90-create-container]
+description = "create container with mounted home"
+run = """
+false
+USER=`whoami`
+HOME_DIR=/home/`whoami`
+PROJECT=`pwd | xargs basename`
+MOUNT=`pwd`/mount
+
+mkdir $MOUNT || true
+podman create \
+    --mount type=bind,src=$MOUNT,dst=$HOME_DIR \
+    --hostname $PROJECT \
+    --name $PROJECT  \
+    -it archlinux
+"""
+
+[tasks.91-replace-container]
+description = "replace container"
+run = """
+false
+USER=`whoami`
+HOME_DIR=/home/`whoami`
+PROJECT=`pwd | xargs basename`
+MOUNT=`pwd`/mount
+
+mkdir $MOUNT || true
+podman create \
+    --replace \
+    --mount type=bind,src=$MOUNT,dst=$HOME_DIR \
+    --hostname $PROJECT \
+    --name $PROJECT  \
+    -it archlinux
+
+"""
+
+[tasks.99-setup-container]
+description = "initial setup after create"
+run = """
+false
+USER=`whoami`
+HOME_DIR=/home/`whoami`
+PROJECT_DIR=`pwd`
+PROJECT=`pwd | xargs basename`
+MOUNT=`pwd`/mount
+PACKAGES="git helix pnpm nodejs mise openssh"
+podman start $PROJECT
+podman exec $PROJECT pacman-key --init
+podman exec $PROJECT pacman -Syu --noconfirm
+podman exec $PROJECT pacman -S --noconfirm $PACKAGES
+podman exec $PROJECT groupadd -g 1000 $USER || true
+podman exec $PROJECT useradd -m -u 1000 -d $HOME_DIR -g $USER -s /bin/bash $USER || true
+touch $MOUNT/.bashrc
+grep -qxF 'eval "$(mise activate bash)"' $MOUNT/.bashrc || echo 'eval "$(mise activate bash)"' >> $MOUNT/.bashrc
+podman exec $PROJECT chown -R $USER $HOME_DIR
+podman exec $PROJECT chgrp -R $USER $HOME_DIR
+"""
+
+[tasks.01-attach-as-user]
+description = "enter container as user"
+run = """
+EXIT_INSTRUCTIONS="Type CTRL p q OR exit 0 to exit"
+PROJECT=`pwd | xargs basename`
+USER=`whoami`
+HOME_DIR=/home/`whoami`
+echo -n 'START ' 
+podman start $PROJECT
+podman exec --user $USER --workdir $HOME_DIR -it $PROJECT /bin/bash
+echo "bye"
+"""
+
+[tasks.02-attach-as-root]
+description = "enter container as root"
+run = """
+EXIT_INSTRUCTIONS="Type CTRL p q OR exit 0 to exit"
+PROJECT=`pwd | xargs basename`
+echo -n 'START '
+podman start $PROJECT
+podman attach $PROJECT
+"""
+
+[tasks.03-start]
+description = "start container without entering"
+run = """
+PROJECT=`pwd | xargs basename`
+echo -n 'START '
+podman start $PROJECT
+"""
+
